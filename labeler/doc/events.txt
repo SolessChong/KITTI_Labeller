@@ -1,0 +1,10 @@
+Events List
+===========
+turn_left	a car turns left
+turn_right	a car turns right
+follow		follow a front car
+yeild_follow	yeild the front car that you are following
+cross		a car crosses the road
+yield_cross	yeild a car that's crossing in front of you
+meet		pass a car running in the direction that's exactly opposite from you
+pass		pass static car

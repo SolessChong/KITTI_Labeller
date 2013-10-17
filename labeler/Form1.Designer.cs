@@ -246,7 +246,7 @@
             this.tabPage2.Location = new System.Drawing.Point(4, 22);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(690, 129);
+            this.tabPage2.Size = new System.Drawing.Size(767, 129);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "Viewing";
             this.tabPage2.UseVisualStyleBackColor = true;
@@ -263,6 +263,7 @@
             this.lvEvents.TabIndex = 1;
             this.lvEvents.UseCompatibleStateImageBehavior = false;
             this.lvEvents.View = System.Windows.Forms.View.Tile;
+            this.lvEvents.ItemSelectionChanged += new System.Windows.Forms.ListViewItemSelectionChangedEventHandler(this.lvEvents_ItemSelectionChanged);
             // 
             // clType
             // 
@@ -284,6 +285,7 @@
             this.btnOpenLabel.TabIndex = 0;
             this.btnOpenLabel.Text = "Open Label";
             this.btnOpenLabel.UseVisualStyleBackColor = true;
+            this.btnOpenLabel.Click += new System.EventHandler(this.btnOpenLabel_Click);
             // 
             // imageBox
             // 

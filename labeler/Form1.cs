@@ -84,7 +84,8 @@ namespace labeler
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                //MessageBox.Show(ex.Message);
+                toolStripStatusLabel1.Text = ex.Message;
             }
         }
         private void NextFrame()
@@ -229,6 +230,17 @@ namespace labeler
                 });
                 lvEvents.Items.Add(lvi);
             }
+        }
+
+        private void lvEvents_ItemSelectionChanged(object sender, ListViewItemSelectionChangedEventArgs e)
+        {
+            var s0 = e.Item.SubItems[0];
+            var s1 = e.Item.SubItems[1];
+            var s2 = e.Item.SubItems[2];
+
+            var firstFrameStr = e.Item.SubItems[1].Text;
+            frameCnt = int.Parse(firstFrameStr);
+            FreshImage(frameCnt);
         }
 
     }

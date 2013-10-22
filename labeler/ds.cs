@@ -21,35 +21,53 @@ namespace labeler
 
         #region Attributes
 
+        int frame_cnt;
         int first_frame;
+        string type;
+        int _ID;
+        int indexA;
+        int indexB;
+        Rectangle bbA;
+        Rectangle bbB;
+        // Number of terms
+        int numTerms;
+
+        #region Interface
+
         public int First_frame
         {
             get { return first_frame; }
             set { first_frame = value; }
         }
 
-        int frame_cnt;
+
         public int Frame_cnt
         {
             get { return frame_cnt; }
             set { frame_cnt = value; }
         }
 
-        string type;
+
         public string Type
         {
             get { return type; }
             set { type = value; }
         }
 
-        int _ID;
+        public int NumTerms
+        {
+            get { return numTerms; }
+            set { numTerms = value; }
+        }
+
+
         public int ID
         {
             get { return _ID; }
             set { _ID = value; }
         }
 
-        int indexA;
+        
 
         public int IndexA
         {
@@ -57,21 +75,21 @@ namespace labeler
             set { indexA = value; }
         }
 
-        int indexB;
+
         public int IndexB
         {
             get { return indexB; }
             set { indexB = value; }
         }
 
-        Rectangle bbA;
+        
         public Rectangle BbA
         {
             get { return bbA; }
             set { bbA = value; }
         }
 
-        Rectangle bbB;
+        
         public Rectangle BbB
         {
             get { return bbB; }
@@ -80,18 +98,22 @@ namespace labeler
 
         #endregion
 
-        public TE(string type)
+        #endregion
+
+        public TE(string type, int numTerms)
         {
             this.ID = global_ID++;
 
             this.Type = type;
+            this.NumTerms = numTerms;
         }
 
-        public TE(string type, int first_frame)
+        public TE(string type, int numTerms, int first_frame)
         {
             this.ID = global_ID++;
 
             this.Type = type;
+            this.NumTerms = numTerms;
             this.First_frame = first_frame;
         }
 

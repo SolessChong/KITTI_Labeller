@@ -51,10 +51,9 @@ namespace labeler
         List<int> currentHighlightBBList = new List<int>();
 
         // Start an event and store it in a list
-        private int StartEvent(string type, int first_frame){
-            
+        private int StartEvent(string type, int numTerms, int first_frame){            
 
-            currentLabellingTE = new TE(type, first_frame);
+            currentLabellingTE = new TE(type, numTerms, first_frame);
             createEventPhase = CreateEventPhase.PickA;
             toolStripStatusLabel1.Text = "Start Event. Pick object A:";
             return currentLabellingTE.ID;
@@ -144,6 +143,9 @@ namespace labeler
                 toolStripStatusLabel1.Text = ex.Message;
             }
 
+            // Load Boundingbox
+            LoadBoundingbox();
+
             FreshImage(currentHighlightBBList, new Point());
         }
 
@@ -181,6 +183,13 @@ namespace labeler
 
         private void LoadBoundingbox()
         {
+            // Load Boundingbox from xml
+            bbFileName = Path.Combine(tbDir.Text, @"boundingbox.xml");
+
+            xmlBBInput = new XmlDocument();
+            xmlBBInput.Load(bbFileName);
+
+            xmlBB = xmlBBInput.SelectSingleNode("boundingbox");
 
             XmlNodeList frames = xmlBB.SelectNodes("frame");
             currentBoundingbox.Clear();
@@ -201,6 +210,11 @@ namespace labeler
                     }
                 }
             }
+
+            // Add boundingbox for Ego_Car
+            // Use -1 as index for Ego_Car
+            currentBoundingbox.Add(-1, new Rectangle(500, 340, 200, 40));
+
         }
 
         private Image<Bgr, byte> DrawBoundingbox(Image<Bgr, byte> rawImage, List<int> currentHighlightBBList, Point mousePos)
@@ -216,14 +230,16 @@ namespace labeler
 
             // Add mouse hover
             var hover = GetHoverID(currentBoundingbox, mousePos);
-            if ( hover != null ){
-                    currentHighlightBBList.Add(hover.Value);
+            if (hover != null)
+            {
+                currentHighlightBBList.Add(hover.Value);
             }
 
             var retImage = rawImage.Clone();
 
             // Current Boundingbox 
-            if ( currentBoundingbox != null ){
+            if (currentBoundingbox != null)
+            {
                 foreach (var pair in currentBoundingbox)
                 {
                     if (currentHighlightBBList != null && currentHighlightBBList.Contains(pair.Key))
@@ -238,7 +254,13 @@ namespace labeler
             }
 
             // Draw Events
-
+            if (currentLabellingTE != null)
+            {
+                if (currentBoundingbox.Keys.Contains(currentLabellingTE.IndexA))
+                    retImage.Draw(currentBoundingbox[currentLabellingTE.IndexA], new Bgr(50, 255, 50), 1);
+                if (currentBoundingbox.Keys.Contains(currentLabellingTE.IndexB))
+                    retImage.Draw(currentBoundingbox[currentLabellingTE.IndexB], new Bgr(20, 150, 20), 1);
+            }
 
             return retImage;
 
@@ -302,14 +324,7 @@ namespace labeler
             xmlDir.InnerText = dir;
             xmlRoot.AppendChild(xmlDir);
 
-            // Boundingbox
-            bbFileName = Path.Combine(tbDir.Text, @"boundingbox.xml");
-
-            xmlBBInput = new XmlDocument();
-            xmlBBInput.Load(bbFileName);
-
-            xmlBB = xmlBBInput.SelectSingleNode("boundingbox");
-
+            
             LoadBoundingbox();
 
             // Fresh image
@@ -335,9 +350,12 @@ namespace labeler
              * Process Event Button Click Event
             \***********************************/
             CheckBox cb = (CheckBox)sender;
+
+            String type = cb.Text.Split(',')[0];
+            int numTerms = int.Parse(cb.Text.Split(',')[1]);
             if (cb.Checked)
             {
-                int ID = StartEvent(cb.Text, frameCnt);
+                int ID = StartEvent(cb.Text, numTerms, frameCnt);
                 eventHandles.Add(cb.Text, ID);
             }
             else
@@ -367,10 +385,15 @@ namespace labeler
                 ListViewItem lvi = new ListViewItem(new[]{
                     ele.GetElementsByTagName("type")[0].InnerText,
                     ele.GetElementsByTagName("first_frame")[0].InnerText,
-                    ele.GetElementsByTagName("frame_cnt")[0].InnerText
+                    ele.GetElementsByTagName("frame_cnt")[0].InnerText,
+                    ele.GetElementsByTagName("object_A")[0].InnerText,
+                    ele.GetElementsByTagName("object_B")[0].InnerText
                 });
                 lvEvents.Items.Add(lvi);
             }
+
+            LoadBoundingbox();
+            LoadFrame(frameCnt);
         }
 
         private void lvEvents_ItemSelectionChanged(object sender, ListViewItemSelectionChangedEventArgs e)
@@ -381,7 +404,11 @@ namespace labeler
 
             var firstFrameStr = e.Item.SubItems[1].Text;
             frameCnt = int.Parse(firstFrameStr);
+            currentLabellingTE = new TE(e.Item.SubItems[0].Text, -1);
+            currentLabellingTE.IndexA = int.Parse(e.Item.SubItems[3].Text);
+            currentLabellingTE.IndexB = int.Parse(e.Item.SubItems[4].Text);
             LoadFrame(frameCnt);
+            FreshImage(currentHighlightBBList, new Point());
         }
 
         private int? GetHoverID(Dictionary<int, Rectangle> boundingbox, Point p){
@@ -409,15 +436,21 @@ namespace labeler
             if (createEventPhase == CreateEventPhase.PickA)
             {
                 currentLabellingTE.IndexA = hover.Value;
-                currentLabellingTE.BbA = currentBoundingbox[hover.Value];
-                createEventPhase = CreateEventPhase.PickB;
-                toolStripStatusLabel1.Text = "Select object B:";
+                if (currentLabellingTE.NumTerms == 2)
+                {
+                    createEventPhase = CreateEventPhase.PickB;
+                    toolStripStatusLabel1.Text = "Select object B:";
+                }
+                else if (currentLabellingTE.NumTerms == 1)
+                {
+                    createEventPhase = CreateEventPhase.Finished;
+                    toolStripStatusLabel1.Text = "Pick finished";
+                }
                 return;
             }
             if (createEventPhase == CreateEventPhase.PickB)
             {
                 currentLabellingTE.IndexB = hover.Value;
-                currentLabellingTE.BbB = currentBoundingbox[hover.Value];
                 createEventPhase = CreateEventPhase.Finished;
                 toolStripStatusLabel1.Text = "Pick finished";
                 return;

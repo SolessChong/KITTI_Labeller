@@ -34,53 +34,75 @@ namespace labeler
         Image<Bgr, Byte> img = null;
 
         // Current TE, corresponding to each buttons
-        Dictionary<string, int> currentEventList = new Dictionary<string, int>();
+        Dictionary<string, int> eventHandles = new Dictionary<string, int>();
         Dictionary<int, Rectangle> currentBoundingbox = new Dictionary<int, Rectangle>();
+
+        enum CreateEventPhase
+        {
+            PickA,
+            PickB,
+            Finished
+        };
+
+        CreateEventPhase createEventPhase;
+        TE currentLabellingTE;
 
         // Drawing
         List<int> currentHighlightBBList = new List<int>();
 
         // Start an event and store it in a list
         private int StartEvent(string type, int first_frame){
-            TE te = new TE(type, first_frame);
-            TEList.Add(te);
-            toolStripStatusLabel1.Text = "Start Event";
-            return te.ID;
+            
+
+            currentLabellingTE = new TE(type, first_frame);
+            createEventPhase = CreateEventPhase.PickA;
+            toolStripStatusLabel1.Text = "Start Event. Pick object A:";
+            return currentLabellingTE.ID;
         }
 
         private void EndEvent(int ID)
         {
-            for (int i = 0; i < TEList.Count; i++)
+            if (createEventPhase != CreateEventPhase.Finished)
             {
-                if (TEList[i].ID == ID)
-                {
-                    TE te = TEList[i];
-                    te.Frame_cnt = frameCnt - te.First_frame;
-                    if (te.Frame_cnt <= 0)
-                    {
-                        toolStripStatusLabel1.Text = "Event too short";
-                        return;
-                    }
-                    
-                    XmlNode xmlTE = xmlOutput.CreateElement("event");
-                    XmlNode xmlType = xmlOutput.CreateElement("type");
-                    xmlType.InnerText = te.Type;
-                    xmlTE.AppendChild(xmlType);
-                    XmlNode xmlFirstFrame = xmlOutput.CreateElement("first_frame");
-                    xmlFirstFrame.InnerText = te.First_frame.ToString();
-                    xmlTE.AppendChild(xmlFirstFrame);
-                    XmlNode xmlFrameCnt = xmlOutput.CreateElement("frame_cnt");
-                    xmlFrameCnt.InnerText = te.Frame_cnt.ToString();
-                    xmlTE.AppendChild(xmlFrameCnt);
-
-                    xmlTEList.AppendChild(xmlTE);
-            
-                    TEList.RemoveAt(i);
-                    toolStripStatusLabel1.Text = "End Event";
-
-                    return;
-                }
+                toolStripStatusLabel1.Text = "No enough object picked";
+                createEventPhase = CreateEventPhase.PickA;
+                return;
             }
+
+            TE te = currentLabellingTE;
+
+            te.Frame_cnt = frameCnt - te.First_frame;
+            if (te.Frame_cnt <= 0)
+            {
+                toolStripStatusLabel1.Text = "Event too short";
+                return;
+            }
+                    
+            XmlNode xmlTE = xmlOutput.CreateElement("event");
+            XmlNode xmlType = xmlOutput.CreateElement("type");
+            xmlType.InnerText = te.Type;
+            xmlTE.AppendChild(xmlType);
+            XmlNode xmlFirstFrame = xmlOutput.CreateElement("first_frame");
+            xmlFirstFrame.InnerText = te.First_frame.ToString();
+            xmlTE.AppendChild(xmlFirstFrame);
+            XmlNode xmlFrameCnt = xmlOutput.CreateElement("frame_cnt");
+            xmlFrameCnt.InnerText = te.Frame_cnt.ToString();
+            xmlTE.AppendChild(xmlFrameCnt);
+            XmlNode xmlObjectA = xmlOutput.CreateElement("object_A");
+            xmlObjectA.InnerText = te.IndexA.ToString();
+            xmlTE.AppendChild(xmlObjectA);
+            XmlNode xmlObjectB = xmlOutput.CreateElement("object_B");
+            xmlObjectB.InnerText = te.IndexB.ToString();
+            xmlTE.AppendChild(xmlObjectB);
+
+            xmlTEList.AppendChild(xmlTE);
+            
+            toolStripStatusLabel1.Text = "End Event";
+
+            createEventPhase = CreateEventPhase.PickA;
+
+            return;
+
         }
 
         #region Routines
@@ -122,35 +144,34 @@ namespace labeler
                 toolStripStatusLabel1.Text = ex.Message;
             }
 
-            FreshImage();
+            FreshImage(currentHighlightBBList, new Point());
         }
 
-        private void FreshImage()
+        private void FreshImage(List<int> currentHighlightBBList, Point mousePos)
         {
             if (img == null) return;
 
             // Load boundingbox, get augmented image
-            var augImage = DrawBoundingbox(img);
+            var augImage = DrawBoundingbox(img, currentHighlightBBList, mousePos);
 
             if (img == null)
                 MessageBox.Show("Load image error");
             else
                 imageBox.Image = augImage.Clone();
                        
-
         }
 
         private void NextFrame()
         {
             frameCnt++;
             LoadFrame(frameCnt);
-            FreshImage();
+            FreshImage(currentHighlightBBList, new Point());
         }
         private void PrevFrame()
         {
             frameCnt--;
             LoadFrame(frameCnt);
-            FreshImage();
+            FreshImage(currentHighlightBBList, new Point());
         }
 
         private void Init()
@@ -181,16 +202,27 @@ namespace labeler
                 }
             }
         }
-        
-        private Image<Bgr, byte> DrawBoundingbox(Image<Bgr, byte> rawImage)
+
+        private Image<Bgr, byte> DrawBoundingbox(Image<Bgr, byte> rawImage, List<int> currentHighlightBBList, Point mousePos)
         {
+
             if (xmlBB == null)
             {
                 toolStripStatusLabel1.Text = "No boundingbox xml file";
                 return rawImage;
             }
 
+            currentHighlightBBList.Clear();
+
+            // Add mouse hover
+            var hover = GetHoverID(currentBoundingbox, mousePos);
+            if ( hover != null ){
+                    currentHighlightBBList.Add(hover.Value);
+            }
+
             var retImage = rawImage.Clone();
+
+            // Current Boundingbox 
             if ( currentBoundingbox != null ){
                 foreach (var pair in currentBoundingbox)
                 {
@@ -204,6 +236,9 @@ namespace labeler
                     }
                 }
             }
+
+            // Draw Events
+
 
             return retImage;
 
@@ -303,12 +338,12 @@ namespace labeler
             if (cb.Checked)
             {
                 int ID = StartEvent(cb.Text, frameCnt);
-                currentEventList.Add(cb.Text, ID);
+                eventHandles.Add(cb.Text, ID);
             }
             else
             {
-                EndEvent(currentEventList[cb.Text]);
-                currentEventList.Remove(cb.Text);
+                EndEvent(eventHandles[cb.Text]);
+                eventHandles.Remove(cb.Text);
             }
         }
 
@@ -349,26 +384,47 @@ namespace labeler
             LoadFrame(frameCnt);
         }
 
+        private int? GetHoverID(Dictionary<int, Rectangle> boundingbox, Point p){
+            foreach ( var pair in boundingbox ){
+                if ( pair.Value.Contains(p) )
+                    return pair.Key;
+            }
+            return null;
+        }
+
         List<int> currentSelectedBB = new List<int>();
         private void imageBox_MouseMove(object sender, MouseEventArgs e)
         {
-            currentHighlightBBList.Clear();
-
-            // Add event display
-
-            // Add mouse hover
-            foreach (var pair in currentBoundingbox)
-            {
-                if (pair.Value.Contains(new Point(e.X, e.Y)))
-                    currentHighlightBBList.Add(pair.Key);
-            }
-
-            FreshImage();
+            FreshImage(currentHighlightBBList, new Point(e.X, e.Y));
         }
 
         private void imageBox_MouseDown(object sender, MouseEventArgs e)
         {
-            
+            var hover = GetHoverID(currentBoundingbox, new Point(e.X, e.Y));
+            if ( hover == null ){
+                toolStripStatusLabel1.Text = "Select a boundingbox first";
+                return;
+            }
+
+            if (createEventPhase == CreateEventPhase.PickA)
+            {
+                currentLabellingTE.IndexA = hover.Value;
+                currentLabellingTE.BbA = currentBoundingbox[hover.Value];
+                createEventPhase = CreateEventPhase.PickB;
+                toolStripStatusLabel1.Text = "Select object B:";
+                return;
+            }
+            if (createEventPhase == CreateEventPhase.PickB)
+            {
+                currentLabellingTE.IndexB = hover.Value;
+                currentLabellingTE.BbB = currentBoundingbox[hover.Value];
+                createEventPhase = CreateEventPhase.Finished;
+                toolStripStatusLabel1.Text = "Pick finished";
+                return;
+            }
+
+            toolStripStatusLabel1.Text = "Nothing happens on this click";
+            return;
         }
 
         private void imageBox_MouseUp(object sender, MouseEventArgs e)

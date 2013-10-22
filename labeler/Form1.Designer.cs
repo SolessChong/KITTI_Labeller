@@ -295,6 +295,9 @@
             this.imageBox.Size = new System.Drawing.Size(1226, 492);
             this.imageBox.TabIndex = 18;
             this.imageBox.TabStop = false;
+            this.imageBox.MouseDown += new System.Windows.Forms.MouseEventHandler(this.imageBox_MouseDown);
+            this.imageBox.MouseMove += new System.Windows.Forms.MouseEventHandler(this.imageBox_MouseMove);
+            this.imageBox.MouseUp += new System.Windows.Forms.MouseEventHandler(this.imageBox_MouseUp);
             // 
             // btnEnd
             // 
@@ -353,7 +356,7 @@
             this.tbDir.Name = "tbDir";
             this.tbDir.Size = new System.Drawing.Size(328, 21);
             this.tbDir.TabIndex = 1;
-            this.tbDir.Text = "G:\\Lab\\KITTI\\2011_09_26\\2011_09_26_drive_0091_extract";
+            this.tbDir.Text = "G:\\Lab\\KITTI\\2011_09_26\\2011_09_26_drive_0035_sync";
             // 
             // btnOpen
             // 

@@ -19,6 +19,7 @@ namespace labeler
     {
         string dir;
         string xmlFileName;
+        string bbFileName;
 
         int         frameCnt;
         List<TE>    TEList;
@@ -26,17 +27,27 @@ namespace labeler
         // Output xml elements
         XmlDocument xmlOutput;
         XmlNode xmlTEList;
+        XmlDocument xmlBBInput;
+        XmlNode xmlBB;
+
+        // Image
+        Image<Bgr, Byte> img = null;
 
         // Current TE, corresponding to each buttons
         Dictionary<string, int> currentEventList = new Dictionary<string, int>();
+        Dictionary<int, Rectangle> currentBoundingbox = new Dictionary<int, Rectangle>();
 
-        // Create event operations
+        // Drawing
+        List<int> currentHighlightBBList = new List<int>();
+
+        // Start an event and store it in a list
         private int StartEvent(string type, int first_frame){
             TE te = new TE(type, first_frame);
             TEList.Add(te);
             toolStripStatusLabel1.Text = "Start Event";
             return te.ID;
         }
+
         private void EndEvent(int ID)
         {
             for (int i = 0; i < TEList.Count; i++)
@@ -72,37 +83,132 @@ namespace labeler
             }
         }
 
-        // Workflow utilities
-        private void FreshImage(int ind)
+        #region Routines
+
+        private void btnPrev_Click(object sender, EventArgs e)
         {
+            PrevFrame();
+        }
+
+        private void btnNext_Click(object sender, EventArgs e)
+        {
+            NextFrame();
+        }
+
+        private void btnSave_Click(object sender, EventArgs e)
+        {
+            SaveLabels();
+        }
+
+        #endregion
+
+        #region Workflow utilities
+
+        private void LoadFrame(int ind)
+        {
+
+            // Load Image
             lbFrameInd.Text = frameCnt.ToString();
+            img = null;
 
             try
             {
                 string fn = Path.Combine(dir, frameCnt.ToString("D10") + ".png");
-                imageBox.Image = new Image<Bgr, Byte>(fn);
+                img = new Image<Bgr, Byte>(fn);
             }
             catch (Exception ex)
             {
                 //MessageBox.Show(ex.Message);
                 toolStripStatusLabel1.Text = ex.Message;
             }
+
+            FreshImage();
         }
+
+        private void FreshImage()
+        {
+            if (img == null) return;
+
+            // Load boundingbox, get augmented image
+            var augImage = DrawBoundingbox(img);
+
+            if (img == null)
+                MessageBox.Show("Load image error");
+            else
+                imageBox.Image = augImage.Clone();
+                       
+
+        }
+
         private void NextFrame()
         {
             frameCnt++;
-            FreshImage(frameCnt);
+            LoadFrame(frameCnt);
+            FreshImage();
         }
         private void PrevFrame()
         {
             frameCnt--;
-            FreshImage(frameCnt);
+            LoadFrame(frameCnt);
+            FreshImage();
         }
 
         private void Init()
         {
 
         }
+
+        private void LoadBoundingbox()
+        {
+
+            XmlNodeList frames = xmlBB.SelectNodes("frame");
+            currentBoundingbox.Clear();
+            foreach (var frameNode in frames)
+            {
+                XmlElement ele = (XmlElement)frameNode;
+                if (Int32.Parse(ele.GetElementsByTagName("frame_cnt")[0].InnerText) == frameCnt)
+                {
+                    foreach (XmlElement xmlItem in ele.GetElementsByTagName("item"))
+                    {
+                        int tracklet_id = Int32.Parse(((XmlElement)xmlItem).GetElementsByTagName("tracklet_id")[0].InnerText);
+                        var numStrs = xmlItem.GetElementsByTagName("box")[0].InnerText.Split(',');
+                        Rectangle rect = new Rectangle(
+                            (int)float.Parse(numStrs[0]), (int)float.Parse(numStrs[2]),
+                            (int)float.Parse(numStrs[1]) - (int)float.Parse(numStrs[0]), (int)float.Parse(numStrs[3]) - (int)float.Parse(numStrs[2])
+                            );
+                        currentBoundingbox.Add(tracklet_id, rect);
+                    }
+                }
+            }
+        }
+        
+        private Image<Bgr, byte> DrawBoundingbox(Image<Bgr, byte> rawImage)
+        {
+            if (xmlBB == null)
+            {
+                toolStripStatusLabel1.Text = "No boundingbox xml file";
+                return rawImage;
+            }
+
+            var retImage = rawImage.Clone();
+            if ( currentBoundingbox != null ){
+                foreach (var pair in currentBoundingbox)
+                {
+                    if (currentHighlightBBList != null && currentHighlightBBList.Contains(pair.Key))
+                    {
+                        retImage.Draw(pair.Value, new Bgr(255, 55, 55), 2);
+                    }
+                    else
+                    {
+                        retImage.Draw(pair.Value, new Bgr(50, 50, 255), 1);
+                    }
+                }
+            }
+
+            return retImage;
+
+        }
+
         private void EndLabeling()
         {
             while (TEList.Count > 0)
@@ -116,6 +222,8 @@ namespace labeler
                 Directory.CreateDirectory(Path.Combine(dir, "eventlabel"));
             xmlOutput.Save(xmlFileName);
         }
+
+        #endregion
 
         // UI utilities
         public Form1()
@@ -139,6 +247,7 @@ namespace labeler
         private void btnOpen_Click(object sender, EventArgs e)
         {
 
+            // Images
             dir = Path.Combine(tbDir.Text, @"image_02\data");
             xmlFileName = Path.Combine(tbDir.Text, @"eventlabel\events.xml");
 
@@ -158,23 +267,20 @@ namespace labeler
             xmlDir.InnerText = dir;
             xmlRoot.AppendChild(xmlDir);
 
-            FreshImage(frameCnt);
+            // Boundingbox
+            bbFileName = Path.Combine(tbDir.Text, @"boundingbox.xml");
+
+            xmlBBInput = new XmlDocument();
+            xmlBBInput.Load(bbFileName);
+
+            xmlBB = xmlBBInput.SelectSingleNode("boundingbox");
+
+            LoadBoundingbox();
+
+            // Fresh image
+            LoadFrame(frameCnt);
         }
 
-        private void btnPrev_Click(object sender, EventArgs e)
-        {
-            PrevFrame();
-        }
-
-        private void btnNext_Click(object sender, EventArgs e)
-        {
-            NextFrame();
-        }
-
-        private void btnSave_Click(object sender, EventArgs e)
-        {
-            SaveLabels();
-        }
 
         private void Form1_KeyUp(object sender, KeyEventArgs e)
         {
@@ -240,60 +346,34 @@ namespace labeler
 
             var firstFrameStr = e.Item.SubItems[1].Text;
             frameCnt = int.Parse(firstFrameStr);
-            FreshImage(frameCnt);
+            LoadFrame(frameCnt);
         }
 
-    }
-
-
-    public class TE
-    {
-        static int global_ID;
-
-        #region Attributes
-
-        int first_frame;
-        public int First_frame
+        List<int> currentSelectedBB = new List<int>();
+        private void imageBox_MouseMove(object sender, MouseEventArgs e)
         {
-            get { return first_frame; }
-            set { first_frame = value; }
+            currentHighlightBBList.Clear();
+
+            // Add event display
+
+            // Add mouse hover
+            foreach (var pair in currentBoundingbox)
+            {
+                if (pair.Value.Contains(new Point(e.X, e.Y)))
+                    currentHighlightBBList.Add(pair.Key);
+            }
+
+            FreshImage();
         }
 
-        int frame_cnt;
-        public int Frame_cnt
+        private void imageBox_MouseDown(object sender, MouseEventArgs e)
         {
-            get { return frame_cnt; }
-            set { frame_cnt = value; }
+            
         }
 
-        string type;
-        public string Type
+        private void imageBox_MouseUp(object sender, MouseEventArgs e)
         {
-            get { return type; }
-            set { type = value; }
-        }
 
-        int _ID;
-        public int ID
-        {
-            get { return _ID; }
-            set { _ID = value; }
-        }
-        #endregion
-
-        public TE(string type)
-        {
-            this.ID = global_ID++;
-
-            this.Type = type;
-        }
-
-        public TE(string type, int first_frame)
-        {
-            this.ID = global_ID++;
-
-            this.Type = type;
-            this.First_frame = first_frame;
         }
 
     }
